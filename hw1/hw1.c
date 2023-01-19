@@ -94,6 +94,10 @@ int main(int argc, char** argv){
         free(*(cache+i));
     }
     free(cache);
+    free(size_array);
+
+    free(buffer);
+    fclose(textfile);
 
 
     return EXIT_SUCCESS;
