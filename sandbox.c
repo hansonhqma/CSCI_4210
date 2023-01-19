@@ -5,15 +5,20 @@
 
 #define MAX_BUFFER_LEN 256
 
+typedef struct{
+    FILE* data;
+    int status;
+} resource; // simulate a resource
+
+/*  
 int main(int argc, char** argv){
+    */
 
 
-    char mychar = '5';
+int main(){
 
-    int myint = mychar-'0';
+    int foo[] = {1,2,3,4,5};
 
-    printf("%d\n", myint);
-    
     return 0;
 }
 
