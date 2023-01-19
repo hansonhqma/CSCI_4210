@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <string.h>
 
 #define MAX_BUFFER_LENGTH 16 // 128 chars max buffer length
 #define LEFT_BRACE 91
@@ -90,11 +91,33 @@ int main(int argc, char** argv){
         }
     }
 
+
+    // TODO: print stuff
+
+    char* line_separator = calloc(41, sizeof(char));
+    memset(line_separator, '=', 40);
+    printf("%s\n", line_separator);
+
+    for(int i=0;i<cache_size;++i){
+        if(*(size_array+i) > 0){
+            printf("Cache index %d => %c ", i+1, LEFT_BRACE);
+            for(int j=0;j<*(size_array+i);++j){
+                printf("%d", *(*(cache+i)+j));
+                if(j!=*(size_array+i)-1){
+                    printf(", ");
+                }
+            }
+            printf(" %c\n", RIGHT_BRACE);
+        }
+    }
+
+    // free memory
     for(int i=0;i<cache_size;++i){
         free(*(cache+i));
     }
     free(cache);
     free(size_array);
+    free(line_separator);
 
     free(buffer);
     fclose(textfile);
