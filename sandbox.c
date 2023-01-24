@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <float.h>
 
 #define MAX_BUFFER_LEN 256
 
@@ -10,14 +11,16 @@ typedef struct{
     int status;
 } resource; // simulate a resource
 
-/*  
-int main(int argc, char** argv){
-    */
-
 
 int main(){
 
-    int foo[] = {1,2,3,4,5};
+    char buffer[MAX_BUFFER_LEN];
+
+    scanf("%[0-9]", buffer);
+
+    printf("%s\n", buffer);
+
+
 
     return 0;
 }

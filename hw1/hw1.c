@@ -20,79 +20,94 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <string.h>
+#include <math.h>
 
-#define MAX_BUFFER_LENGTH 16 // 128 chars max buffer length
-#define LEFT_BRACE 91
-#define RIGHT_BRACE 93
+#define MAX_BUFFER_LENGTH 0x100 // 256 chars max buffer length
+#define LEFT_BRACE 0x5b
+#define RIGHT_BRACE 0x5d
+
+
+int modulo(double a, double b){
+    // finds remainder of dividing a by b such that b*n + r = a
+
+    while(a>=b){
+        a -= b;
+    }
+    return a;
+}
 
 
 int main(int argc, char** argv){
 
+    printf("arg count: %d\n", argc);
+
+    if(argc<3){
+        perror("Invalid usage");
+        return EXIT_FAILURE;
+    }
+
     // read cli arguments
 
-    if(argc!=3){
-        perror("invalid usage");
-        return EXIT_FAILURE;
-    }
-
-    char* filename = *(argv+2);
-
-    char charbuffer;
-    FILE* textfile = fopen(filename, "r");
-    
-    if(textfile==NULL){
-        perror("File opening failed");
-        return EXIT_FAILURE;
-    }
+    int input_file_count = argc - 2;
 
     // initialize some data variables
     int cache_size = atoi(*(argv+1));                   // size of cache
     int* size_array = calloc(cache_size, sizeof(int));  // make size info array
-    int** cache = calloc(cache_size, sizeof(int*));     // cache array, all caches are NULL
-
+    double** cache = calloc(cache_size, sizeof(int*));     // cache array, all caches are NULL
 
     char* buffer = calloc(MAX_BUFFER_LENGTH, sizeof(char));
 
-    while(!feof(textfile)){
-        fscanf(textfile, "%s", buffer);
+    for(int current_file_index = 0;
+            current_file_index<input_file_count;
+            ++current_file_index){ // for every input file
 
-        char* current_char_ptr = buffer;
-        while(*current_char_ptr){ // keep reading chars
-            if(isdigit(*current_char_ptr)){ // found unsigned number
-                int current_value = (int)strtol(current_char_ptr, &current_char_ptr, 10); // smash to int
+        char* filename = *(argv+current_file_index+2);
+        FILE* textfile = fopen(filename, "r");
 
-                // do caching stuff
-                int cache_idx = current_value % cache_size - 1;
-                int entry_size = *(size_array+cache_idx);
-                if(*(size_array+cache_idx)==0){                // cache at position is empty, calloc
-                    *(cache+cache_idx) = calloc(1, sizeof(int));
-                    printf("Read %d => cache index %d (calloc)\n", current_value, cache_idx+1);
+        if(textfile==NULL){
+            perror("File opening failed");
+            return EXIT_FAILURE;
+        }
 
-                }else{ // some stuff already exists there
-                    // check for the duplicate first
-                    int duplicate = 0;
-                    for(int i=0;i<entry_size;++i){
-                        int value_at_cache_entry = *(*(cache+cache_idx) + i);
-                        if(value_at_cache_entry == current_value){
-                            printf("Read %d => cache index %d (skipped)\n", current_value, cache_idx+1);
-                            duplicate = 1;
-                            break;
+        while(fscanf(textfile, "%s", buffer)!=-1){ // for every scanned string
+
+            char* current_char_ptr = buffer;
+            while(*current_char_ptr){ // for every char in that string
+                if(isdigit(*current_char_ptr)){ // found unsigned number
+                    double current_value = strtol(current_char_ptr, &current_char_ptr, 10);
+
+                    // do caching stuff
+                    int cache_idx = modulo(current_value, cache_size);
+                    int entry_size = *(size_array+cache_idx);
+                    if(*(size_array+cache_idx)==0){                // cache at position is empty, calloc
+                        *(cache+cache_idx) = calloc(1, sizeof(double));
+                        printf("Read %.0lf => cache index %d (calloc)\n", current_value, cache_idx);
+
+                    }else{ // some stuff already exists there
+                        // check for the duplicate first
+                        int duplicate = 0;
+                        for(int i=0;i<entry_size;++i){
+                            double value_at_cache_entry = *(*(cache+cache_idx) + i);
+                            if(value_at_cache_entry == current_value){
+                                printf("Read %.0lf => cache index %d (skipped)\n", current_value, cache_idx);
+                                duplicate = 1;
+                                break;
+                            }
                         }
+                        if(duplicate){continue;}
+                        *(cache+cache_idx) = realloc(*(cache+cache_idx), (entry_size+1)*sizeof(double));
+                        printf("Read %.0lf => cache index %d (realloc)\n", current_value, cache_idx);
                     }
-                    if(duplicate){continue;}
-                    *(cache+cache_idx) = realloc(*(cache+cache_idx), (entry_size+1)*sizeof(int));
-                    printf("Read %d => cache index %d (realloc)\n", current_value, cache_idx+1);
+                    *(size_array+cache_idx) += 1;
+                    *(*(cache+cache_idx) + entry_size) = current_value;
+                }else{
+                    current_char_ptr++;
                 }
-                *(size_array+cache_idx) += 1;
-                *(*(cache+cache_idx) + entry_size) = current_value;
-            }else{
-                current_char_ptr++;
             }
         }
+        fclose(textfile);
     }
 
-
-    // TODO: print stuff
 
     char* line_separator = calloc(41, sizeof(char));
     memset(line_separator, '=', 40);
@@ -100,9 +115,9 @@ int main(int argc, char** argv){
 
     for(int i=0;i<cache_size;++i){
         if(*(size_array+i) > 0){
-            printf("Cache index %d => %c ", i+1, LEFT_BRACE);
+            printf("Cache index %d => %c ", i, LEFT_BRACE);
             for(int j=0;j<*(size_array+i);++j){
-                printf("%d", *(*(cache+i)+j));
+                printf("%.0lf", *(*(cache+i)+j));
                 if(j!=*(size_array+i)-1){
                     printf(", ");
                 }
@@ -120,8 +135,6 @@ int main(int argc, char** argv){
     free(line_separator);
 
     free(buffer);
-    fclose(textfile);
-
 
     return EXIT_SUCCESS;
 }
