@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <float.h>
+#include <limits.h>
 
 #define MAX_BUFFER_LEN 256
 
@@ -14,11 +15,13 @@ typedef struct{
 
 int main(){
 
-    char buffer[MAX_BUFFER_LEN];
+    unsigned int buffer;
 
-    scanf("%[0-9]", buffer);
+    printf("%u\n", UINT_MAX);
+    scanf("%u", &buffer);
 
-    printf("%s\n", buffer);
+
+    printf("%u\n", buffer);
 
 
 

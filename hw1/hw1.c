@@ -20,32 +20,27 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <string.h>
-#include <math.h>
 
 #define MAX_BUFFER_LENGTH 0x100 // 256 chars max buffer length
 #define LEFT_BRACE 0x5b
 #define RIGHT_BRACE 0x5d
 
 
-int modulo(double a, double b){
-    // finds remainder of dividing a by b such that b*n + r = a
-
-    while(a>=b){
-        a -= b;
-    }
-    return a;
-}
-
-
 int main(int argc, char** argv){
 
-    printf("arg count: %d\n", argc);
-
     if(argc<3){
-        perror("Invalid usage");
+        fprintf(stderr, "Invalid usage");
         return EXIT_FAILURE;
     }
 
+    char* argcharptr;
+    for(argcharptr=*(argv+1); *argcharptr!='\0'; ++argcharptr){
+        if(!isdigit(*argcharptr)){
+            fprintf(stderr, "Invalid cache size");
+            return EXIT_FAILURE;
+        }
+    }
+        
     // read cli arguments
 
     int input_file_count = argc - 2;
@@ -53,7 +48,7 @@ int main(int argc, char** argv){
     // initialize some data variables
     int cache_size = atoi(*(argv+1));                   // size of cache
     int* size_array = calloc(cache_size, sizeof(int));  // make size info array
-    double** cache = calloc(cache_size, sizeof(int*));     // cache array, all caches are NULL
+    unsigned int** cache = calloc(cache_size, sizeof(int*));     // cache array, all caches are NULL
 
     char* buffer = calloc(MAX_BUFFER_LENGTH, sizeof(char));
 
@@ -74,29 +69,29 @@ int main(int argc, char** argv){
             char* current_char_ptr = buffer;
             while(*current_char_ptr){ // for every char in that string
                 if(isdigit(*current_char_ptr)){ // found unsigned number
-                    double current_value = strtol(current_char_ptr, &current_char_ptr, 10);
+                    unsigned int current_value = strtol(current_char_ptr, &current_char_ptr, 10);
 
                     // do caching stuff
-                    int cache_idx = modulo(current_value, cache_size);
+                    int cache_idx = current_value % cache_size;
                     int entry_size = *(size_array+cache_idx);
                     if(*(size_array+cache_idx)==0){                // cache at position is empty, calloc
-                        *(cache+cache_idx) = calloc(1, sizeof(double));
-                        printf("Read %.0lf => cache index %d (calloc)\n", current_value, cache_idx);
+                        *(cache+cache_idx) = calloc(1, sizeof(unsigned int));
+                        printf("Read %u => cache index %d (calloc)\n", current_value, cache_idx);
 
                     }else{ // some stuff already exists there
                         // check for the duplicate first
                         int duplicate = 0;
                         for(int i=0;i<entry_size;++i){
-                            double value_at_cache_entry = *(*(cache+cache_idx) + i);
+                            unsigned int value_at_cache_entry = *(*(cache+cache_idx) + i);
                             if(value_at_cache_entry == current_value){
-                                printf("Read %.0lf => cache index %d (skipped)\n", current_value, cache_idx);
+                                printf("Read %u => cache index %d (skipped)\n", current_value, cache_idx);
                                 duplicate = 1;
                                 break;
                             }
                         }
                         if(duplicate){continue;}
-                        *(cache+cache_idx) = realloc(*(cache+cache_idx), (entry_size+1)*sizeof(double));
-                        printf("Read %.0lf => cache index %d (realloc)\n", current_value, cache_idx);
+                        *(cache+cache_idx) = realloc(*(cache+cache_idx), (entry_size+1)*sizeof(unsigned int));
+                        printf("Read %u => cache index %d (realloc)\n", current_value, cache_idx);
                     }
                     *(size_array+cache_idx) += 1;
                     *(*(cache+cache_idx) + entry_size) = current_value;
@@ -117,7 +112,7 @@ int main(int argc, char** argv){
         if(*(size_array+i) > 0){
             printf("Cache index %d => %c ", i, LEFT_BRACE);
             for(int j=0;j<*(size_array+i);++j){
-                printf("%.0lf", *(*(cache+i)+j));
+                printf("%u", *(*(cache+i)+j));
                 if(j!=*(size_array+i)-1){
                     printf(", ");
                 }
