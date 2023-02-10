@@ -1,20 +1,7 @@
-/*
- * =====================================================================================
- *
- *       Filename:  main.c
- *
- *    Description:  solves knights tour problem with multiprocessing 
- *
- *        Version:  1.0
- *        Created:  02/03/2023 05:09:35 PM
- *       Revision:  none
- *       Compiler:  gcc
- *
- *         Author:  YOUR NAME (), 
- *   Organization:  
- *
- * =====================================================================================
- */
+
+
+
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -43,16 +30,19 @@ int main(int argc, char** argv){
             ptr++;
         }
     }
-    /* some notes
-     * closed tour = finishes one move away from start
-     * open tour = not a closed tour
-     *
-     * when child process finds a solution, tells parent process
-     *
-     * each intermediate parent process needs to be able to give knowledge to its
-     * child processes in the form of copied stack variables
-     *
-     */
+
+    // we're good to go 👍
+
+    int rows = atoi(argv[1]);
+    int cols = atoi(argv[2]);
+    int start_rows = atoi(argv[3]);
+    int start_cols = atoi(argv[4]);
+    
+    // set up pipe
+    int fd[2];
+    if(pipe(fd)==-1){
+        return -1;
+    }
 
     
 

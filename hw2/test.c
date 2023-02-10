@@ -21,7 +21,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
-#define target_depth 2
+#define target_depth 1
 
 
 int main(){
@@ -75,7 +75,7 @@ int main(){
 
             // leaf node condition
 
-            sleep(3);
+            sleep(5);
             printf("leaf node %d exiting, fd: %d, %d\n", getpid(), fd[0], fd[1]);
             exit(69);
         }
