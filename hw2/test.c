@@ -21,7 +21,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
-#define target_depth 1
+#define target_depth 2
 
 
 int main(){
@@ -70,7 +70,6 @@ int main(){
             free(child_log);
         }
 
-        printf("process %d at start of control loop\n", getpid());
         if(depth==target_depth){
 
             // leaf node condition
@@ -90,6 +89,8 @@ int main(){
 
         // need to make sure im not a child proces
         child_log = calloc(3, sizeof(int));
+
+        printf("process %d with child log %p\n", getpid(), child_log);
         
         for(int i=0;i<3;++i){
             printf("parent process %d spawning %dth children at depth %d\n", getpid(), i, depth);

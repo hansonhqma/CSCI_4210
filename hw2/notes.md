@@ -18,7 +18,15 @@ control process
 
 
 for each intermediate process:
-- check for success
+... what do we have?
+  - we know where the previously visited positions are
+  - we know where we are
+
+- check for success (what does this mean?)
+  - if i have only made legal moves... then if this is my m\*nth move... we're done
+    - if theres one left... we must exist there!
+    - now we need to see if its open or closed... see if start pos is reachable from current pos
+    - tell parent
 - increase depth variable
 - mark current position on newly allocated board
 - determine which moves can be made
