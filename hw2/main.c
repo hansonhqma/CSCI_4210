@@ -35,6 +35,10 @@ void print_state(char** state, int r, int c, int crow, int ccol){
     printf("\n");
 }
 
+void print_prompt(){
+    printf("PID %d: ", getpid());
+}
+
 void print_invalidusage(){
     perror("ERROR: Invalid argument(s)\n");
     perror("USAGE: hw2.out <m> <n> <r> <c>\n");
@@ -87,6 +91,7 @@ int main(int argc, char** argv){
     }
 
     // we're good to go 👍
+    //setvbuf( stdout, NULL, _IONBF, 0  );
 
     int rows = atoi(argv[1]);
     int cols = atoi(argv[2]);
@@ -114,7 +119,6 @@ int main(int argc, char** argv){
 
     // create state
     // '\0': have not moved here
-    // '1': have been here
 
     char** state = calloc(rows, sizeof(char*));
     for(int r=0;r<rows;++r){
@@ -132,8 +136,9 @@ int main(int argc, char** argv){
         if(depth+1 == rows*cols){
             // if there are as many occupied spots as there are moves... i must be done
             //printf("process %d at depth %d:\n", getpid(), depth);
-            printf("tour found by %d, last pos: %d, %d\n", getpid(), current_row, current_col);
             print_state(state, rows, cols, current_row, current_col);
+            print_prompt();
+            printf("Sonny found a full knight's tour; notifying top-level parent\n");
 
             // #TODO: check if open or closed
             // report to top-level through pipe
@@ -218,11 +223,15 @@ int main(int argc, char** argv){
         }
     }
 
-    /* 
     if(!subprocess_count){
-        printf("leaf\n");
+        // dead-end
+        print_prompt();
+        printf("Dead end at move #%d\n", depth);
+    }else{
+        // i spawned some children...
+        print_prompt();
+        printf("%d possible moves after move #%d; creating %d child processes...\n", subprocess_count, depth, subprocess_count);
     }
-    */
 
     int status;
     for(int i=0;i<EIGHT;++i){
@@ -239,9 +248,9 @@ int main(int argc, char** argv){
             printf("child %d did not terminate normally\n", subprocess_log[i]);
         }
     }
+
     if(getpid()==TOP_LEVEL_PID){
         printf("Top level process %d exiting\n", TOP_LEVEL_PID);
-        print_state(state, rows, cols, current_row, current_col);
     }
 
     for(int i=0;i<rows;++i){
