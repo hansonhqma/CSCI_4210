@@ -38,8 +38,7 @@ void print_prompt(){
 }
 
 void print_invalidusage(){
-    perror("ERROR: Invalid argument(s)");
-    perror("USAGE: hw2.out <m> <n> <r> <c>");
+    fprintf(stderr, "ERROR: Invalid argument(s)\nUSAGE: hw2.out <m> <n> <r> <c>\n");
 }
 
 int pos_in_bounds(int cr, int cc, int r, int c){
@@ -127,13 +126,14 @@ int main(int argc, char** argv){
     int start_row = atoi(*(argv+3));
     int start_col = atoi(*(argv+4));
 
-    printf(" Solving Sonny's knight's tour problem for a %dx%d board\n", rows, cols);
-    printf(" Sonny starts at row %d and column %d (move #1)\n", start_row, start_col);
-
     if(!pos_in_bounds(start_row, start_col, rows, cols)){
         print_invalidusage();
         return 1;
     }
+
+
+    printf(" Solving Sonny's knight's tour problem for a %dx%d board\n", rows, cols);
+    printf(" Sonny starts at row %d and column %d (move #1)\n", start_row, start_col);
 
     // set up pipe
     int* fd = calloc(2, sizeof(int));
@@ -167,10 +167,6 @@ int main(int argc, char** argv){
 
         if(depth+1 == rows*cols){
             // if there are as many occupied spots as there are moves... i must be done
-            if(!quiet){
-                print_prompt();
-                printf("Sonny found a full knight's tour; notifying top-level parent\n");
-            }
 
             // #TODO: check if open or closed
             int closed_tour = 0;
@@ -179,6 +175,15 @@ int main(int argc, char** argv){
                         current_col + get_col_delta(i) == start_col){ // closed
                     closed_tour = 1;
                     break;
+                }
+            }
+
+            if(!quiet){
+                print_prompt();
+                if(closed_tour){
+                    printf("Sonny found a full knight's tour; notifying top-level parent\n");
+                }else{
+                    printf("Sonny found an open knight's tour; notifying top-level parent\n");
                 }
             }
 
@@ -225,12 +230,11 @@ int main(int argc, char** argv){
         }
         
         depth++;
-        if(!quiet && subprocess_count > 1){
-            print_prompt();
-            printf("%d possible moves after move #%d; creating %d child processes...\n", subprocess_count, depth, subprocess_count);
-        }
 
         if(subprocess_count > 1){
+            if(!quiet){
+                printf("PID %d: %d possible moves after move #%d; creating %d child processes...\n", getpid(), subprocess_count, depth, subprocess_count);
+            }
             for(int move_id = 0;move_id<EIGHT;++move_id){
 
                 // find moves in clockwise order
@@ -304,12 +308,13 @@ int main(int argc, char** argv){
         }
     }
 
+
     // done spawning children
+
 
     if(!subprocess_count){
         if(!quiet){
-            print_prompt();
-            printf("Dead end at move #%d\n", depth);
+            printf("PID %d: Dead end at move #%d\n", getpid(), depth);
         }
         max_search = depth;
     }else{
