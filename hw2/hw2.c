@@ -33,10 +33,6 @@ void print_state(char** state, int r, int c, int crow, int ccol){
     printf("\n");
 }
 
-void print_prompt(){
-    printf("PID %d: ", getpid());
-}
-
 void print_invalidusage(){
     fprintf(stderr, "ERROR: Invalid argument(s)\nUSAGE: hw2.out <m> <n> <r> <c>\n");
 }
@@ -179,11 +175,10 @@ int main(int argc, char** argv){
             }
 
             if(!quiet){
-                print_prompt();
                 if(closed_tour){
-                    printf("Sonny found a full knight's tour; notifying top-level parent\n");
+                    printf("PID %d: Sonny found a full knight's tour; notifying top-level parent\n", getpid());
                 }else{
-                    printf("Sonny found an open knight's tour; notifying top-level parent\n");
+                    printf("PID %d: Sonny found an open knight's tour; notifying top-level parent\n", getpid());
                 }
             }
 
