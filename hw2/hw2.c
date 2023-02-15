@@ -38,8 +38,8 @@ void print_prompt(){
 }
 
 void print_invalidusage(){
-    perror("ERROR: Invalid argument(s)\n");
-    perror("USAGE: hw2.out <m> <n> <r> <c>\n");
+    perror("ERROR: Invalid argument(s)");
+    perror("USAGE: hw2.out <m> <n> <r> <c>");
 }
 
 int pos_in_bounds(int cr, int cc, int r, int c){
@@ -69,6 +69,25 @@ int get_col_delta(int move_identifier){
     return rd;
 }
 
+int valid_moveid(int moveid, int crow, int ccol, int r, int c, char** state){
+    // see if move in bounds first, then see if its not occupied
+
+    int rpos = crow + get_row_delta(moveid);
+    int cpos = ccol + get_col_delta(moveid);
+
+    if(!pos_in_bounds(rpos, cpos, r, c)){
+        return 0;
+    }else{
+        // position in bounds
+        if(*(*(state+rpos)+cpos) != '\0'){
+            return 0;
+        }else{
+            // position not occupied
+            return 1;
+        }
+    }
+}
+
 int main(int argc, char** argv){
 
     // see if all the arguments are there
@@ -90,12 +109,26 @@ int main(int argc, char** argv){
 
     // we're good to go 👍
 
+    // set up compiler flags
+    int quiet = 1;
+#ifndef QUIET
+    quiet = 0;
+#endif
+
+    int no_parallel = 1;
+#ifndef NO_PARALLEL
+    no_parallel = 0;
+#endif
+
     setvbuf( stdout, NULL, _IONBF, 0  );
 
     int rows = atoi(*(argv+1));
     int cols = atoi(*(argv+2));
     int start_row = atoi(*(argv+3));
     int start_col = atoi(*(argv+4));
+
+    printf(" Solving Sonny's knight's tour problem for a %dx%d board\n", rows, cols);
+    printf(" Sonny starts at row %d and column %d (move #1)\n", start_row, start_col);
 
     if(!pos_in_bounds(start_row, start_col, rows, cols)){
         print_invalidusage();
@@ -125,18 +158,19 @@ int main(int argc, char** argv){
     }
 
     int depth = 0;
+    int max_search = 0;
     int TOP_LEVEL_PID = getpid();
 
     int subprocess_count;
     while(responsibility){
         // while i have the responsibility of spawning processes...
-        subprocess_count = 0;
 
         if(depth+1 == rows*cols){
             // if there are as many occupied spots as there are moves... i must be done
-            //printf("process %d at depth %d:\n", getpid(), depth);
-            print_prompt();
-            printf("Sonny found a full knight's tour; notifying top-level parent\n");
+            if(!quiet){
+                print_prompt();
+                printf("Sonny found a full knight's tour; notifying top-level parent\n");
+            }
 
             // #TODO: check if open or closed
             int closed_tour = 0;
@@ -170,114 +204,131 @@ int main(int argc, char** argv){
             free(fd);
             free(write_buffer);
 
-
             exit(depth);
         }
 
         // take advantage of copy-on-write mechanisms
-        char token;
-        if(depth>9){
-            token = 'a' + (depth-10);
-        }else{
-            token = '0' + depth;
-        }
-        *(*(state+current_row)+current_col) = token;
+        *(*(state+current_row)+current_col) = 'x';
+
+        // RRAAHHHHHHHHKJNDGLKSHJBGLJKHSBFKJHBKFJHBSKDJGHBSKJHGBK
+        // 😡🤬😡🤬😡🤬😡🤬😡🤬😡🤬😡🤬😡🤬😡🤬
+
+        // need to find how many legal moves there are first...
+        subprocess_count = 0;
         for(int i=0;i<EIGHT;++i){
-           *(subprocess_log+i)= 0;
-        }
-
-        depth++;
-
-        for(int move_id = 0;move_id<EIGHT;++move_id){
-
-            // find moves in clockwise order // how can we do this while minimizing memory allocation?
-            // for each move identifier
-            // generate deltas and check for validity:
-            //      - is it in bounds
-            //      - is it a free square
-            //      only after those two are true can we spawn processes
-            int row_delta = get_row_delta(move_id);
-            int col_delta = get_col_delta(move_id);
-            
-            // we'll change these back after the child process spawns...
-            current_row += row_delta;
-            current_col += col_delta;
-            
-            if(!pos_in_bounds(current_row, current_col, rows, cols)){
-
-                // position out of bounds
-                current_row -= row_delta;
-                current_col -= col_delta;
-                responsibility = 0;
-                continue;
-            }
-            if(*(*(state + current_row) + current_col) != '\0'){
-
-                // position is occupied 
-                current_row -= row_delta;
-                current_col -= col_delta;
-                responsibility = 0;
-                continue;
-            }
-
-            // we can spawn a process to move there
-            int spawn_pid = fork();
-            if(!spawn_pid){
-                // in child process
-                //printf("child process %d spawned at depth %d\n", getpid(), depth);
-                responsibility = 1;
-                break;
-
-            }else if(spawn_pid==-1){
-                // fork failed, terminate with errno
-                perror("fork failed");
-                exit(errno);
-
-            }else{
-                // in parent process
+            if(valid_moveid(i, current_row, current_col, rows, cols, state)){
                 subprocess_count++;
-                
-                responsibility = 0;
-                *(subprocess_log+move_id) = spawn_pid; // record child pid
-
-                // change current position back
-                current_row -= row_delta;
-                current_col -= col_delta;
-
+                *(subprocess_log+i) = 1; // just a signal
+            }else{
+                *(subprocess_log+i) = 0;
             }
         }
-    }
-
-
-
-    int max_search = 0;
-
-    if(!subprocess_count){
-        // dead-end
-        print_prompt();
-        printf("Dead end at move #%d\n", depth);
-        max_search = depth;
-    }else{
-        // i spawned some children...
-        if(TOP_LEVEL_PID == getpid()){
+        
+        depth++;
+        if(!quiet && subprocess_count > 1){
             print_prompt();
             printf("%d possible moves after move #%d; creating %d child processes...\n", subprocess_count, depth, subprocess_count);
         }
 
-        // wait for child processes
-        int status;
-        for(int i=0;i<EIGHT;++i){
+        if(subprocess_count > 1){
+            for(int move_id = 0;move_id<EIGHT;++move_id){
 
-            if(!(*(subprocess_log+i))){continue;}
+                // find moves in clockwise order
+                // how can we do this while minimizing memory allocation...?
+                // for each move identifier
+                // generate deltas and check for validity:
+                //      - is it in bounds
+                //      - is it a free square
+                //      only after those two are true can we spawn processes
 
-            waitpid(*(subprocess_log+i), &status, 0);
-
-            if(WIFEXITED(status)){
-                if(WEXITSTATUS(status) > max_search){
-                    max_search = WEXITSTATUS(status);
+                if(*(subprocess_log+move_id) == 0){
+                    // this move_id is not valid
+                    continue;
                 }
-            }else{
-                perror("child did not terminate normally");
+
+                int row_delta = get_row_delta(move_id);
+                int col_delta = get_col_delta(move_id);
+                // we'll change these back after the child process spawns...
+                current_row += row_delta;
+                current_col += col_delta;
+
+                // we can spawn a process to move there
+                int spawn_pid = fork();
+                if(!spawn_pid){
+                    // in child process
+                    //printf("child process %d spawned at depth %d\n", getpid(), depth);
+                    responsibility = 1;
+                    break;
+
+                }else if(spawn_pid==-1){
+                    // fork failed, terminate with errno
+                    perror("fork failed");
+                    exit(errno);
+
+                }else{
+                    if(no_parallel){
+                        int status;
+                        waitpid(spawn_pid, &status, 0);
+                        if(WIFEXITED(status)){
+                            int exit_status = WEXITSTATUS(status);
+                            if(exit_status > max_search){
+                                max_search = exit_status;
+                            }
+                        }else{
+                            perror("child did not terminate normally");
+                        }
+                    }
+                    // in parent process
+                    responsibility = 0;
+                    *(subprocess_log+move_id) = spawn_pid; // record child pid
+
+                    // change current position back
+                    current_row -= row_delta;
+                    current_col -= col_delta;
+                }
+            }
+        
+        }else if(subprocess_count == 1){
+            // no need to fork
+            for(int moveid=0;moveid<EIGHT;++moveid){
+                if(*(subprocess_log+moveid) == 0){
+                    continue;
+                }
+                current_row += get_row_delta(moveid);
+                current_col += get_col_delta(moveid);
+            }
+        }else{
+            // no sub processes, exit responsibility loop
+            responsibility = 0;
+
+        }
+    }
+
+    // done spawning children
+
+    if(!subprocess_count){
+        if(!quiet){
+            print_prompt();
+            printf("Dead end at move #%d\n", depth);
+        }
+        max_search = depth;
+    }else{
+        if(!no_parallel){
+            // parallelized process catching, wait for children
+            int status;
+            for(int i=0;i<EIGHT;++i){
+
+                if(!(*(subprocess_log+i))){continue;}
+
+                waitpid(*(subprocess_log+i), &status, 0);
+
+                if(WIFEXITED(status)){
+                    if(WEXITSTATUS(status) > max_search){
+                        max_search = WEXITSTATUS(status);
+                    }
+                }else{
+                    perror("child did not terminate normally");
+                }
             }
         }
     }
@@ -293,8 +344,15 @@ int main(int argc, char** argv){
             if(*read_buffer == 'c'){closed++;}
             else{open++;}
         }
-        printf("%d open, %d closed\n", open, closed);
         free(read_buffer);
+
+        if(open+closed==0){
+            // no solutions were found
+            printf(" Search complete; best solution(s) visited %d squares out of %d\n", max_search, rows*cols);
+        }else{
+            printf(" Search complete; found %d open tours and %d closed tours", open, closed);
+        }
+        
 
     }
 
