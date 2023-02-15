@@ -18,7 +18,6 @@
 
 void print_state(char** state, int r, int c, int crow, int ccol){
     for(int i=0;i<r;++i){
-        printf("[");
         for(int j=0;j<c;++j){
             if(i==crow && j==ccol){
                 printf(" X");
@@ -30,7 +29,6 @@ void print_state(char** state, int r, int c, int crow, int ccol){
                 }
             }
         }
-        printf("]\n");
     }
     printf("\n");
 }
@@ -80,7 +78,7 @@ int main(int argc, char** argv){
     }
     // validate arguments
     for(int argi=1;argi<5;++argi){
-        char* ptr = argv[argi];
+        char* ptr = *(argv+argi);
         while((*ptr) != '\0'){
             if(!isdigit(*ptr)){
                 print_invalidusage();
@@ -91,12 +89,13 @@ int main(int argc, char** argv){
     }
 
     // we're good to go 👍
-    //setvbuf( stdout, NULL, _IONBF, 0  );
 
-    int rows = atoi(argv[1]);
-    int cols = atoi(argv[2]);
-    int start_row = atoi(argv[3]);
-    int start_col = atoi(argv[4]);
+    setvbuf( stdout, NULL, _IONBF, 0  );
+
+    int rows = atoi(*(argv+1));
+    int cols = atoi(*(argv+2));
+    int start_row = atoi(*(argv+3));
+    int start_col = atoi(*(argv+4));
 
     if(!pos_in_bounds(start_row, start_col, rows, cols)){
         print_invalidusage();
@@ -136,15 +135,42 @@ int main(int argc, char** argv){
         if(depth+1 == rows*cols){
             // if there are as many occupied spots as there are moves... i must be done
             //printf("process %d at depth %d:\n", getpid(), depth);
-            print_state(state, rows, cols, current_row, current_col);
             print_prompt();
             printf("Sonny found a full knight's tour; notifying top-level parent\n");
 
             // #TODO: check if open or closed
-            // report to top-level through pipe
+            int closed_tour = 0;
+            for(int i=0;i<EIGHT;++i){
+                if(current_row + get_row_delta(i) == start_row &&
+                        current_col + get_col_delta(i) == start_col){ // closed
+                    closed_tour = 1;
+                    break;
+                }
+            }
 
-            //char buf[16];
-            //scanf("%s", buf);
+            // write to pipe
+            char* write_buffer = calloc(1, 1);
+            if(closed_tour){
+                *write_buffer = 'c';
+            }else{
+                *write_buffer = 'o';
+            }
+
+            close(*fd); // close read end
+            write(*(fd+1), write_buffer, 1);
+
+            // free
+            for(int i=0;i<rows;++i){
+                free(*(state+i));
+            }
+            free(state);
+            state = NULL;
+            free(subprocess_log);
+            subprocess_log = NULL;
+            free(fd);
+            free(write_buffer);
+
+
             exit(depth);
         }
 
@@ -157,15 +183,14 @@ int main(int argc, char** argv){
         }
         *(*(state+current_row)+current_col) = token;
         for(int i=0;i<EIGHT;++i){
-            subprocess_log[i] = 0;
+           *(subprocess_log+i)= 0;
         }
 
         depth++;
 
         for(int move_id = 0;move_id<EIGHT;++move_id){
 
-            // find moves in clockwise order
-            // how can we do this while minimizing memory allocation?
+            // find moves in clockwise order // how can we do this while minimizing memory allocation?
             // for each move identifier
             // generate deltas and check for validity:
             //      - is it in bounds
@@ -213,7 +238,7 @@ int main(int argc, char** argv){
                 subprocess_count++;
                 
                 responsibility = 0;
-                subprocess_log[move_id] = spawn_pid; // record child pid
+                *(subprocess_log+move_id) = spawn_pid; // record child pid
 
                 // change current position back
                 current_row -= row_delta;
@@ -223,46 +248,66 @@ int main(int argc, char** argv){
         }
     }
 
+
+
+    int max_search = 0;
+
     if(!subprocess_count){
         // dead-end
         print_prompt();
         printf("Dead end at move #%d\n", depth);
+        max_search = depth;
     }else{
         // i spawned some children...
-        print_prompt();
-        printf("%d possible moves after move #%d; creating %d child processes...\n", subprocess_count, depth, subprocess_count);
-    }
-
-    int status;
-    for(int i=0;i<EIGHT;++i){
-        // wait for children
-        if(!subprocess_log[i]){
-            continue;
+        if(TOP_LEVEL_PID == getpid()){
+            print_prompt();
+            printf("%d possible moves after move #%d; creating %d child processes...\n", subprocess_count, depth, subprocess_count);
         }
 
-        waitpid(subprocess_log[i], &status, 0);
+        // wait for child processes
+        int status;
+        for(int i=0;i<EIGHT;++i){
 
-        if(WIFEXITED(status)){
-            //printf("parent \t%d at depth \t%d caught child \%d\n", getpid(), depth, subprocess_log[i]);
-        }else{
-            printf("child %d did not terminate normally\n", subprocess_log[i]);
+            if(!(*(subprocess_log+i))){continue;}
+
+            waitpid(*(subprocess_log+i), &status, 0);
+
+            if(WIFEXITED(status)){
+                if(WEXITSTATUS(status) > max_search){
+                    max_search = WEXITSTATUS(status);
+                }
+            }else{
+                perror("child did not terminate normally");
+            }
         }
     }
 
-    if(getpid()==TOP_LEVEL_PID){
-        printf("Top level process %d exiting\n", TOP_LEVEL_PID);
+    if(TOP_LEVEL_PID == getpid()){
+        // at this point all solutions should've been written to fd...
+        int open = 0;
+        int closed = 0;
+
+        close(*(fd+1)); // close write end
+        char* read_buffer = calloc(1, 1);
+        while(read(*fd, read_buffer, 1)){
+            if(*read_buffer == 'c'){closed++;}
+            else{open++;}
+        }
+        printf("%d open, %d closed\n", open, closed);
+        free(read_buffer);
+
     }
 
+    // free up memory
+    free(fd);
     for(int i=0;i<rows;++i){
         free(*(state+i));
     }
     free(state);
+    state = NULL;
     free(subprocess_log);
     subprocess_log = NULL;
-    state = NULL;
-
-    free(fd);
 
 
-    return 0;
+    return max_search;
 }
