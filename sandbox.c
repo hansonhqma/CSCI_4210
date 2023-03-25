@@ -4,24 +4,25 @@
 #include <string.h>
 #include <float.h>
 #include <limits.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <wait.h>
 
 #define MAX_BUFFER_LEN 256
-
-typedef struct{
-    FILE* data;
-    int status;
-} resource; // simulate a resource
 
 
 int main(){
 
-    unsigned int buffer;
+    int fd[2];
 
-    printf("%u\n", UINT_MAX);
-    scanf("%u", &buffer);
+    close(0);
 
+    pipe(fd);
 
-    printf("%u\n", buffer);
+    printf("%d\n", getpid());
+
+    printf("%d, %d\n", fd[0], fd[1]);
 
 
 
