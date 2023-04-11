@@ -140,7 +140,7 @@ void* threaded_solve(void *args){
         }else{
             total_open_tours++;
         }
-        pthread_mutex_lock(&sync_lock);
+        pthread_mutex_unlock(&sync_lock);
 
         // TODO: free memory
 
@@ -210,13 +210,17 @@ void* threaded_solve(void *args){
 
             // new thread state is constructed, create new thread
             *(subthread_log_sim+moveid) = (pthread_t)next_thread_number;
-            int ret = pthread_create(subthread_log+moveid, NULL, threaded_solve, (void*)spawned_thread_state);
-            
-            if(ret){
-                // error
-                perror("threading failed");
-                exit(errno);
+
+            int err = 1;
+            while(err){
+                err = pthread_create(subthread_log+moveid, NULL, threaded_solve, (void*)spawned_thread_state);
+                if(err){
+                    // error
+                    printf("%ld threading failed\n", current_thread_number);
+                    perror("error");
+                }
             }
+            
 
             if(no_parallel){
                 // join thread immediately
@@ -353,7 +357,11 @@ MAIN: Sonny starts at row %d and column %d (move #1)\n", rows, cols, start_row, 
     threaded_solve(thread_state);
 
     if(total_closed_tours + total_open_tours == 0){
-        printf("MAIN: Search complete; best solution(s) visited %d squares out of %d\n", max_squares, max_depth);
+        if(max_squares == 1){
+            printf("MAIN: Search complete; best solution(s) visited 1 square\n");
+        }else{
+            printf("MAIN: Search complete; best solution(s) visited %d squares out of %d\n", max_squares, max_depth);
+        }
     }else{
         printf("MAIN: Search complete; found %d open tours and %d closed tours\n", total_open_tours, total_closed_tours);
     }
