@@ -115,8 +115,6 @@ void* threaded_solve(void *args){
 #endif
 
     // check for success
-
-
     if(thread_state->depth+1 == max_depth){
         // check if open or closed
         int closed_tour = 0;
@@ -136,11 +134,13 @@ void* threaded_solve(void *args){
             }
         }        
 
+        pthread_mutex_lock(&sync_lock);
         if(closed_tour){
             total_closed_tours++;
         }else{
             total_open_tours++;
         }
+        pthread_mutex_lock(&sync_lock);
 
         // TODO: free memory
 
@@ -163,7 +163,7 @@ void* threaded_solve(void *args){
         if(valid_moveid(moveid, thread_state->state_row,
         thread_state->state_col, rows, cols, thread_state->board)){
             subthread_count++;
-            *(subthread_log+moveid) = 1;
+            *(subthread_log+moveid) = (pthread_t)1;
         }
     }
 
@@ -172,7 +172,11 @@ void* threaded_solve(void *args){
     if(subthread_count > 1){
 
         if(!quiet){
-            printf("T%ld: %d possible moves after move #%d; creating %d child threads...\n", current_thread_number, subthread_count, thread_state->depth+1, subthread_count);
+            if(current_thread_number == 0){
+                printf("MAIN: %d possible moves after move #%d; creating %d child threads...\n", subthread_count, thread_state->depth+1, subthread_count);
+            }else{
+                printf("T%ld: %d possible moves after move #%d; creating %d child threads...\n", current_thread_number, subthread_count, thread_state->depth+1, subthread_count);
+            }
         }
 
         for(int moveid = 0;moveid < EIGHT; ++moveid){
@@ -205,7 +209,7 @@ void* threaded_solve(void *args){
             next_thread_number++;
 
             // new thread state is constructed, create new thread
-            *(subthread_log_sim+moveid) = next_thread_number;
+            *(subthread_log_sim+moveid) = (pthread_t)next_thread_number;
             int ret = pthread_create(subthread_log+moveid, NULL, threaded_solve, (void*)spawned_thread_state);
             
             if(ret){
@@ -217,9 +221,14 @@ void* threaded_solve(void *args){
             if(no_parallel){
                 // join thread immediately
                 pthread_join(*(subthread_log + moveid), NULL);
-                printf("T%ld: T%ld joined\n", current_thread_number, *(subthread_log_sim+moveid));
+                if(!quiet){
+                    if(current_thread_number == 0){
+                        printf("MAIN: T%ld joined\n", (long int)*(subthread_log_sim+moveid));
+                    }else{
+                        printf("T%ld: T%ld joined\n", current_thread_number, (long int)*(subthread_log_sim+moveid));
+                    }
+                }
             }
-
         }
 
     }else if(subthread_count == 1){
@@ -227,17 +236,12 @@ void* threaded_solve(void *args){
         // dont need to make new thread state, just modify it
 
         thread_state->depth++;
-
-        int row_delta_singular_move, col_delta_singular_move;
         for(int i=0;i<EIGHT;++i){
             if(*(subthread_log + i) == 0){continue;}
-            row_delta_singular_move = get_row_delta(i);
-            col_delta_singular_move = get_col_delta(i);
+            thread_state->state_row += get_row_delta(i);
+            thread_state->state_col += get_col_delta(i);
             break;
         }
-
-        thread_state->state_row += row_delta_singular_move;
-        thread_state->state_col += col_delta_singular_move;
 
         // recurse
         free(subthread_log);
@@ -253,10 +257,12 @@ void* threaded_solve(void *args){
         if(!quiet){
             if(thread_state->depth+1 > max_squares){
                 printf("T%ld: Dead end at move #%d; updated max_squares\n", current_thread_number, thread_state->depth+1);
-                max_squares = thread_state->depth + 1;
             }else{
                 printf("T%ld: Dead end at move #%d\n", current_thread_number, thread_state->depth+1);
             }
+        }
+        if(thread_state->depth+1 > max_squares){
+            max_squares = thread_state->depth + 1;
         }
     }else if(subthread_count > 1){
         if(!no_parallel){
@@ -264,7 +270,13 @@ void* threaded_solve(void *args){
             for(int i=0;i<EIGHT;++i){
                 if(!(*(subthread_log + i))){continue;}
                 pthread_join(*(subthread_log + i), NULL);
-                printf("T%ld: T%ld joined\n", current_thread_number, *(subthread_log_sim+i));
+                if(!quiet){
+                    if(current_thread_number == 0){
+                        printf("MAIN: T%ld joined\n", (long int)*(subthread_log_sim+i));
+                    }else{
+                        printf("T%ld: T%ld joined\n", current_thread_number, (long int)*(subthread_log_sim+i));
+                    }
+                }
             }
         }
     }
@@ -302,16 +314,6 @@ int simulate( int argc, char ** argv ){
     }
 
     // we're good to go 👍
-    int quiet = 0;
-#ifdef QUIET
-    quiet = 1;
-#endif
-
-    int no_parallel = 0;
-#ifdef NO_PARALLEL
-    no_parallel = 1;
-#endif
-
     rows = atoi(*(argv+1));
     cols = atoi(*(argv+2));
     max_depth = rows*cols;
@@ -319,7 +321,7 @@ int simulate( int argc, char ** argv ){
     start_row = atoi(*(argv+3));
     start_col = atoi(*(argv+4));
 
-    int max_depth = rows * cols;
+    max_depth = rows * cols;
 
     if(!pos_in_bounds(start_row, start_col, rows, cols)){
         print_invalidusage();
@@ -350,9 +352,15 @@ MAIN: Sonny starts at row %d and column %d (move #1)\n", rows, cols, start_row, 
 
     threaded_solve(thread_state);
 
-    printf("MAIN: Search complete; found %d open tours and %d closed tours\n", total_open_tours, total_closed_tours);
+    if(total_closed_tours + total_open_tours == 0){
+        printf("MAIN: Search complete; best solution(s) visited %d squares out of %d\n", max_squares, max_depth);
+    }else{
+        printf("MAIN: Search complete; found %d open tours and %d closed tours\n", total_open_tours, total_closed_tours);
+    }
 
     pthread_mutex_destroy(&sync_lock);
+
+    next_thread_number++;
 
     return 0;
 }
