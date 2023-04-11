@@ -11,6 +11,11 @@ extern int max_squares;
 extern int total_open_tours;
 extern int total_closed_tours;
 
+int rows, cols, max_depth;
+
+int start_row, start_col;
+
+pthread_mutex_t sync_lock;
 
 void print_invalidusage(){
     fprintf(stderr, "ERROR: Invalid argument(s)\nUSAGE: hw2.out <m> <n> <r> <c>\n");
@@ -70,19 +75,10 @@ struct state_info{
     // where this thread currently is
     int state_row;
     int state_col;
-
-    // where the solve started
-    int start_row;
-    int start_col;
-
-    // board size
-    int rows;
-    int cols;
-
 };
 
 void free_state_info(struct state_info* state){
-    for(int r=0;r<state->rows;++r){
+    for(int r=0;r<rows;++r){
         free(*(state->board + r));
     }
     free(state->board);
@@ -120,14 +116,13 @@ void* threaded_solve(void *args){
 
     // check for success
 
-    int max_depth = thread_state->rows * thread_state->cols;
 
     if(thread_state->depth+1 == max_depth){
         // check if open or closed
         int closed_tour = 0;
         for(int i=0;i<EIGHT;++i){
-            if(thread_state->state_row + get_row_delta(i) == thread_state->start_row &&
-                    thread_state->state_col+ get_col_delta(i) == thread_state->start_col){ // closed
+            if(thread_state->state_row + get_row_delta(i) == start_row &&
+                    thread_state->state_col+ get_col_delta(i) == start_col){ // closed
                 closed_tour = 1;
                 break;
             }
@@ -166,7 +161,7 @@ void* threaded_solve(void *args){
     int subthread_count = 0;
     for(int moveid = 0;moveid < EIGHT;++moveid){
         if(valid_moveid(moveid, thread_state->state_row,
-        thread_state->state_col, thread_state->rows, thread_state->cols, thread_state->board)){
+        thread_state->state_col, rows, cols, thread_state->board)){
             subthread_count++;
             *(subthread_log+moveid) = 1;
         }
@@ -194,28 +189,21 @@ void* threaded_solve(void *args){
             // increment depth
             spawned_thread_state->depth = thread_state->depth + 1;
 
-            // board size, these don't change
-            spawned_thread_state->rows = thread_state->rows;
-            spawned_thread_state->cols = thread_state->cols;
-
-            // start row and col, these don't change
-            spawned_thread_state->start_row = thread_state->start_row;
-            spawned_thread_state->start_col = thread_state->start_col;
-
             // thread position, these change by move deltas
             spawned_thread_state->state_row = thread_state->state_row + get_row_delta(moveid);
             spawned_thread_state->state_col = thread_state->state_col + get_col_delta(moveid);
 
             // start building the new thread state board... alloc and copy
-            spawned_thread_state->board = calloc(spawned_thread_state->rows, sizeof(char*));
-            for(int i=0;i<spawned_thread_state->rows;++i){
-                *(spawned_thread_state->board + i) = calloc(spawned_thread_state->cols, sizeof(char));
-                for(int j=0;j<spawned_thread_state->cols;++j){
+            spawned_thread_state->board = calloc(rows, sizeof(char*));
+            for(int i=0;i<rows;++i){
+                *(spawned_thread_state->board + i) = calloc(cols, sizeof(char));
+                for(int j=0;j<cols;++j){
                     *(*(spawned_thread_state->board + i) + j) = *(*(thread_state->board + i) + j);
                 }
             }
 
             next_thread_number++;
+
             // new thread state is constructed, create new thread
             *(subthread_log_sim+moveid) = next_thread_number;
             int ret = pthread_create(subthread_log+moveid, NULL, threaded_solve, (void*)spawned_thread_state);
@@ -231,8 +219,6 @@ void* threaded_solve(void *args){
                 pthread_join(*(subthread_log + moveid), NULL);
                 printf("T%ld: T%ld joined\n", current_thread_number, *(subthread_log_sim+moveid));
             }
-            
-        
 
         }
 
@@ -265,12 +251,12 @@ void* threaded_solve(void *args){
 
     if(subthread_count==0){
         if(!quiet){
-            printf("T%ld: Dead end at move #%d", current_thread_number, thread_state->depth+1);
             if(thread_state->depth+1 > max_squares){
+                printf("T%ld: Dead end at move #%d; updated max_squares\n", current_thread_number, thread_state->depth+1);
                 max_squares = thread_state->depth + 1;
-                printf("; updated max_squares");
+            }else{
+                printf("T%ld: Dead end at move #%d\n", current_thread_number, thread_state->depth+1);
             }
-            printf("\n");
         }
     }else if(subthread_count > 1){
         if(!no_parallel){
@@ -326,10 +312,12 @@ int simulate( int argc, char ** argv ){
     no_parallel = 1;
 #endif
 
-    int rows = atoi(*(argv+1));
-    int cols = atoi(*(argv+2));
-    int start_row = atoi(*(argv+3));
-    int start_col = atoi(*(argv+4));
+    rows = atoi(*(argv+1));
+    cols = atoi(*(argv+2));
+    max_depth = rows*cols;
+
+    start_row = atoi(*(argv+3));
+    start_col = atoi(*(argv+4));
 
     int max_depth = rows * cols;
 
@@ -357,18 +345,14 @@ int simulate( int argc, char ** argv ){
     thread_state->state_col = start_col;
     thread_state->state_row = start_row;
 
-    thread_state->start_row = start_row;
-    thread_state->start_col = start_col;
-
-    thread_state->rows = rows;
-    thread_state->cols = cols;
-
     printf("MAIN: Solving Sonny's knight's tour problem for a %dx%d board\n\
 MAIN: Sonny starts at row %d and column %d (move #1)\n", rows, cols, start_row, start_col);
 
     threaded_solve(thread_state);
 
     printf("MAIN: Search complete; found %d open tours and %d closed tours\n", total_open_tours, total_closed_tours);
+
+    pthread_mutex_destroy(&sync_lock);
 
     return 0;
 }
