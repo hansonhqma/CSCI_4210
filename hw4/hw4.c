@@ -10,6 +10,7 @@
 #include "utils.h"
 
 #define WORD_LENGTH 5
+#define QUEUE_LIMIT 10
 
 extern char** words;
 
@@ -19,7 +20,7 @@ extern char** words;
 
 char* core_checker(char* input, char* target_word){
     // core wordle functionality
-    // input should theoretically be 5 byte packet
+    // input should theoretically be 6 byte packet
     // target_word is 6 byte packet, last byte is '\0'
 
     char* ret = calloc(WORD_LENGTH+1, sizeof(char));
@@ -122,15 +123,57 @@ int wordle_server( int argc, char ** argv ){
     // print headers
     printf("MAIN: opened %s (%d words)\n", *(argv+3), WORD_COUNT);
 
-    // set up tcp server
+    // set up tcp socket
     int listener_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if(listener_socket == -1){perror("ERROR: Socket creation failed");return EXIT_FAILURE;}
 
+    // create internet socket address
+    struct sockaddr_in server_name;
+    server_name.sin_family = AF_INET;
+    server_name.sin_addr.s_addr = htonl(INADDR_ANY);
+    server_name.sin_port = htons(PORT_NUMBER);
+
+    // bind name to socket
+    if(bind(listener_socket, (struct sockaddr*)&server_name, sizeof(server_name)) == -1){
+        perror("ERROR: bind() failed");
+        return EXIT_FAILURE;
+    }
+
+    // set accept and queue limit
+    if(listen(listener_socket, QUEUE_LIMIT) == -1){
+        perror("ERROR: listen() failed");
+        return EXIT_FAILURE;
+    }
+    
     printf("MAIN: Wordle server listening on port %d\n", PORT_NUMBER);
 
+    // TODO: everything past this point is just for testing
 
+    // set up client socket addr
+    struct sockaddr_in client_name;
+    socklen_t client_name_len = sizeof(client_name);
 
+    // blocking call
+    printf("blocking on accept...\n");
+    int sd = accept(listener_socket, (struct sockaddr*)&client_name, &client_name_len);
+    if(sd==-1){
+        perror("ERROR: accept() failed");
+        return EXIT_FAILURE;
+    }
+    printf("client accepted\n");
 
+    printf("blocking on recv");
 
+    char* recv_buffer = calloc(WORD_LENGTH+1, sizeof(char));
+    
+    int n = recv(sd, recv_buffer, WORD_LENGTH, 0);
+    if(n==-1){
+        perror("ERROR; recv() failed");
+        return EXIT_FAILURE;
+    }
+
+    char* cc = core_checker(recv_buffer, "wears");
+    printf("%s\n", cc);
 
 
 
