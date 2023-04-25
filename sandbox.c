@@ -4,8 +4,14 @@
 #include <string.h>
 #include <float.h>
 #include <limits.h>
+
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+
+#include <semaphore.h>
+#include <pthread.h>
 #include <fcntl.h>
 #include <wait.h>
 
@@ -14,16 +20,23 @@
 
 int main(){
 
-    int fd[2];
+    unsigned short bits = 99;
 
-    close(0);
+    bits <<= 8; // shift over one byte
 
-    pipe(fd);
+    bits += 2;
 
-    printf("%d\n", getpid());
+    bits >>= 8;
 
-    printf("%d, %d\n", fd[0], fd[1]);
+    char tgt = 'c';
 
+    int eq = bits == tgt;
+
+    printf("%u\n", bits);
+    printf("%c\n", bits);
+    printf("%d\n", eq);
+
+    
 
 
     return 0;
