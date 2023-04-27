@@ -29,7 +29,7 @@ int main()
 
   struct sockaddr_in tcp_server;
   tcp_server.sin_family = AF_INET;  /* IPv4 */
-  memcpy( (void *)&tcp_server.sin_addr, (void *)hp->h_addr, hp->h_length );
+  memcpy( (void *)&tcp_server.sin_addr, (void *)hp->h_addr_list[0], hp->h_length );
   unsigned short server_port = 2898;
   tcp_server.sin_port = htons( server_port );
 

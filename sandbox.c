@@ -20,23 +20,8 @@
 
 int main(){
 
-    unsigned short bits = 99;
+    srand(1024);
 
-    bits <<= 8; // shift over one byte
-
-    bits += 2;
-
-    bits >>= 8;
-
-    char tgt = 'c';
-
-    int eq = bits == tgt;
-
-    printf("%u\n", bits);
-    printf("%c\n", bits);
-    printf("%d\n", eq);
-
-    
 
 
     return 0;
