@@ -4,6 +4,7 @@
 #include <string.h>
 #include <float.h>
 #include <limits.h>
+#include <signal.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -15,13 +16,16 @@
 #include <fcntl.h>
 #include <wait.h>
 
+#include <arpa/inet.h>
+
 #define MAX_BUFFER_LEN 256
 
 
 int main(){
 
-    srand(1024);
+    fprintf(stdout, "writing to stdout\n");
 
+    fprintf(stderr, "writing to stderr\n");
 
 
     return 0;
